@@ -15,8 +15,8 @@ from SmartFreeEdit.utils.utils_lisa import load_lisa_model
 
 from SmartFreeEdit.src.vlm_pipeline import (
     vlm_response_editing_type,
-    vlm_response_object_wait_for_edit, 
-    vlm_response_mask, 
+    vlm_response_object_wait_for_edit,
+    vlm_response_mask,
     vlm_response_prompt_after_apply_instruction,
     detect_object
 )
@@ -51,13 +51,27 @@ except:
 
 torch_dtype = torch.float16
 # download hf models
-SmartFreeEdit_path = "models/"
+# 优先使用环境变量，否则使用本地配置
+SmartFreeEdit_path = os.getenv("SMARTFREEEDIT_MODEL_PATH", None)
+if SmartFreeEdit_path is None:
+    try:
+        from SmartFreeEdit.config_local import SMARTFREEEDIT_MODEL_PATH, AUTO_DOWNLOAD_IF_NOT_EXISTS
+        SmartFreeEdit_path = SMARTFREEEDIT_MODEL_PATH
+    except ImportError:
+        SmartFreeEdit_path = "/home/liying/Documents/smart_free_edit_huggingface"  # 默认路径
+
 if not os.path.exists(SmartFreeEdit_path):
-    SmartFreeEdit_path = snapshot_download(
-        repo_id="TeleAI/SmartFreeEdit",
-        local_dir=SmartFreeEdit_path,
-        token=os.getenv("HF_TOKEN"),
-    )
+    if AUTO_DOWNLOAD_IF_NOT_EXISTS:
+        SmartFreeEdit_path = snapshot_download(
+            repo_id="TeleAI/SmartFreeEdit",
+            local_dir=SmartFreeEdit_path,
+            token=os.getenv("HF_TOKEN"),
+        )
+    else:
+        raise FileNotFoundError(
+            f"模型路径不存在: {SmartFreeEdit_path}\n"
+            f"请修改 SmartFreeEdit/config_local.py 中的 SMARTFREEEDIT_MODEL_PATH"
+        )
 
 ## init default VLM
 vlm_type, vlm_local_path, vlm_processor, vlm_model = vlms_template[DEFAULT_VLM_MODEL_NAME]
@@ -93,8 +107,8 @@ lisa_model, tokenizer = load_lisa_model(
 
 
 ## Ordinary function
-def resize(image: Image.Image, 
-                    target_width: int, 
+def resize(image: Image.Image,
+                    target_width: int,
                     target_height: int) -> Image.Image:
     """
     Crops and resizes an image while preserving the aspect ratio.
@@ -173,7 +187,7 @@ def update_vlm_model(vlm_name):
         torch.cuda.empty_cache()
 
     vlm_type, vlm_local_path, vlm_processor, vlm_model = vlms_template[vlm_name]
-    
+
     ## we recommend using preload models, otherwise it will take a long time to download the model. you can edit the code via vlm_template.py
     if vlm_type == "openai":
         vlm_model = OpenAI(api_key='')
@@ -222,22 +236,22 @@ def submit_GPT4o_KEY(api_key, api_version, end_point, engine):
         }
 
         response = requests.post(url, headers=headers, data=payload, timeout=20)
-        response.raise_for_status()  
+        response.raise_for_status()
         response_str = response.json()['choices'][0]['message']['content']
 
-  
+
         vlm_model = AzureOpenAI(
             api_key=api_key,
             api_version=api_version,
             azure_endpoint=end_point
         )
-        vlm_processor = ""  
+        vlm_processor = ""
 
         print("Success, " + response_str, "GPT4-o (Highly Recommended)")
         return vlm_model, vlm_processor, "Success, GPT4-o (Highly Recommended)"
     except Exception as e:
         return f"Invalid GPT4o API Configuration: {str(e)}", "GPT4-o (Highly Recommended)"
-    
+
 def transform_image(image):
     image_pil = Image.fromarray(image)
     transform = T.Compose(
@@ -285,16 +299,16 @@ def add_response_mask(url,
     return boxes_dict
 
 
-    
-def process(input_image, 
-    original_image, 
-    original_mask, 
-    prompt, 
-    negative_prompt, 
-    control_strength, 
-    seed, 
-    randomize_seed, 
-    guidance_scale, 
+
+def process(input_image,
+    original_image,
+    original_mask,
+    prompt,
+    negative_prompt,
+    control_strength,
+    seed,
+    randomize_seed,
+    guidance_scale,
     num_inference_steps,
     num_samples,
     blending,
@@ -313,11 +327,11 @@ def process(input_image,
     if prompt is None or prompt == "":
         if target_prompt is None or target_prompt == "":
             raise gr.Error("Please input your instructions, e.g., remove the xxx")
-    
+
     alpha_mask = input_image["layers"][0].split()[3]
     input_mask = np.asarray(alpha_mask)
     output_w, output_h = aspect_ratios[aspect_ratio_name]
-    if output_w == "" or output_h == "":    
+    if output_w == "" or output_h == "":
         output_h, output_w = original_image.shape[:2]
 
         if resize_default:
@@ -336,7 +350,7 @@ def process(input_image,
             gr.Info(f"Output aspect ratio: {output_w}:{output_h}")
         else:
             gr.Info(f"Output aspect ratio: {output_w}:{output_h}")
-            pass 
+            pass
     else:
         if resize_default:
             short_side = min(output_w, output_h)
@@ -353,7 +367,7 @@ def process(input_image,
             original_mask = resize(Image.fromarray(np.squeeze(original_mask)), target_width=int(output_w), target_height=int(output_h))
             original_mask = np.array(original_mask)
 
-    
+
     API_KEY = GPT4o_KEY
     API_VERSION = api_version
     END_POINT = end_point
@@ -373,22 +387,22 @@ def process(input_image,
     else:
         try:
             object_wait_for_edit = vlm_response_object_wait_for_edit(
-                                                url, 
-                                                API_KEY, 
+                                                url,
+                                                API_KEY,
                                                 original_image,
-                                                category, 
+                                                category,
                                                 prompt,
                                                 "cuda")
             print(f'object_wait_for_edit: {object_wait_for_edit}')
             if category == "Addition":
                 boxs = add_response_mask(url, API_KEY, original_image, groundingdino_model)
-                original_mask = vlm_response_mask(url, API_KEY, category, original_image, 
-                        prompt, object_wait_for_edit, 
+                original_mask = vlm_response_mask(url, API_KEY, category, original_image,
+                        prompt, object_wait_for_edit,
                         lisa_model, tokenizer, device, boxs)
             else:
                 original_mask = vlm_response_mask(url, API_KEY, category, original_image,
-                                                prompt, 
-                                                object_wait_for_edit, 
+                                                prompt,
+                                                object_wait_for_edit,
                                                 lisa_model,
                                                 tokenizer,
                                                 "cuda"
@@ -398,11 +412,11 @@ def process(input_image,
 
     if original_mask.ndim == 2:
         original_mask = original_mask[:,:,None]
-    
+
 
     if target_prompt is not None and len(target_prompt) >= 1:
         prompt_after_apply_instruction = target_prompt
-        
+
     else:
         try:
             prompt_after_apply_instruction = vlm_response_prompt_after_apply_instruction(
@@ -419,7 +433,7 @@ def process(input_image,
 
 
     with torch.autocast("cuda"):
-        image, mask_image, mask_np, init_image_np = SmartFreeEdit_Pipeline(pipe, 
+        image, mask_image, mask_np, init_image_np = SmartFreeEdit_Pipeline(pipe,
                                     prompt_after_apply_instruction,
                                     original_mask,
                                     original_image,
@@ -438,8 +452,8 @@ def process(input_image,
     return image, [mask_image], [masked_image], prompt, ''
 
 
-def generate_target_prompt( input_image, 
-                            original_image, 
+def generate_target_prompt( input_image,
+                            original_image,
                             prompt,
                             gpt4o_key,
                             api_version,
@@ -457,20 +471,20 @@ def generate_target_prompt( input_image,
     url = f"{END_POINT}/openai/deployments/{ENGINE}/chat/completions?api-version={API_VERSION}"
     try:
         prompt_after_apply_instruction = vlm_response_prompt_after_apply_instruction(
-                                                            url, 
-                                                            API_KEY, 
+                                                            url,
+                                                            API_KEY,
                                                             original_image,
                                                             prompt,
                                                             category,
                                                             "cuda")
     except Exception as e:
         raise gr.Error(f"{e}")
-    
+
     return prompt_after_apply_instruction
 
 
-def process_mask(input_image, 
-    original_image, 
+def process_mask(input_image,
+    original_image,
     prompt,
     resize_default,
     aspect_ratio_name):
@@ -490,20 +504,20 @@ def process_mask(input_image,
     if input_mask.max() == 0:
         category = vlm_response_editing_type(vlm_processor, vlm_model, original_image, prompt, "cuda")
 
-        object_wait_for_edit = vlm_response_object_wait_for_edit(vlm_processor, 
-                                                                vlm_model, 
+        object_wait_for_edit = vlm_response_object_wait_for_edit(vlm_processor,
+                                                                vlm_model,
                                                                 original_image,
-                                                                category, 
+                                                                category,
                                                                 prompt,
                                                                 "cuda")
         # original mask: h,w,1 [0, 255]
         original_mask = vlm_response_mask(
                                 vlm_processor,
                                 vlm_model,
-                                category, 
-                                original_image, 
-                                prompt, 
-                                object_wait_for_edit, 
+                                category,
+                                original_image,
+                                prompt,
+                                object_wait_for_edit,
                                 groundingdino_model,
                                 lisa_model,
                                 tokenizer,
@@ -514,7 +528,7 @@ def process_mask(input_image,
 
     ## resize mask if needed
     output_w, output_h = aspect_ratios[aspect_ratio_name]
-    if output_w == "" or output_h == "":    
+    if output_w == "" or output_h == "":
         output_h, output_w = original_image.shape[:2]
         if resize_default:
             short_side = min(output_w, output_h)
@@ -532,7 +546,7 @@ def process_mask(input_image,
             gr.Info(f"Output aspect ratio: {output_w}:{output_h}")
         else:
             gr.Info(f"Output aspect ratio: {output_w}:{output_h}")
-            pass 
+            pass
     else:
         if resize_default:
             short_side = min(output_w, output_h)
@@ -562,18 +576,18 @@ def process_mask(input_image,
     return [masked_image], [mask_image], original_mask.astype(np.uint8), category
 
 
-def process_random_mask(input_image, 
-                         original_image, 
-                         original_mask, 
-                         resize_default, 
-                         aspect_ratio_name, 
+def process_random_mask(input_image,
+                         original_image,
+                         original_mask,
+                         resize_default,
+                         aspect_ratio_name,
                          ):
 
     alpha_mask = input_image["layers"][0].split()[3]
     input_mask = np.asarray(alpha_mask)
-    
+
     output_w, output_h = aspect_ratios[aspect_ratio_name]
-    if output_w == "" or output_h == "":    
+    if output_w == "" or output_h == "":
         output_h, output_w = original_image.shape[:2]
         if resize_default:
             short_side = min(output_w, output_h)
@@ -591,7 +605,7 @@ def process_random_mask(input_image,
             gr.Info(f"Output aspect ratio: {output_w}:{output_h}")
         else:
             gr.Info(f"Output aspect ratio: {output_w}:{output_h}")
-            pass 
+            pass
     else:
         if resize_default:
             short_side = min(output_w, output_h)
@@ -613,7 +627,7 @@ def process_random_mask(input_image,
         original_mask = original_mask
     else:
         original_mask = input_mask
-    
+
     if original_mask is None:
         raise gr.Error('Please generate mask first')
 
@@ -632,8 +646,8 @@ def process_random_mask(input_image,
 
     return [masked_image], [mask_image], random_mask[:,:,None].astype(np.uint8)
 
-def init_img(base, 
-             init_type, 
+def init_img(base,
+             init_type,
              prompt,
              aspect_ratio,
              example_change_times
@@ -642,16 +656,16 @@ def init_img(base,
     original_image = np.array(image_pil)
     if max(original_image.shape[0], original_image.shape[1]) * 1.0 / min(original_image.shape[0], original_image.shape[1])>2.0:
         raise gr.Error('image aspect ratio cannot be larger than 2.0')
-    
+
     if aspect_ratio not in ASPECT_RATIO_LABELS:
         aspect_ratio = "Custom resolution"
     return base, original_image, None, "", None, None, None, "", "", aspect_ratio, False, 0
 
-def reset_func(input_image, 
-               original_image, 
-               original_mask, 
-               prompt, 
-               target_prompt, 
+def reset_func(input_image,
+               original_image,
+               original_mask,
+               prompt,
+               target_prompt,
                gpt4o_key,
                api_version,
                end_point,
@@ -693,20 +707,20 @@ def generate_target(input_image, original_image, prompt, **kwargs):
     return target_prompt
 
 def run_process(audio_file, input_image, original_image, prompt, **kwargs):
-    
+
     if audio_file is not None:
         prompt, _ = update_prompt_with_audio(audio_file, prompt)
-    
-  
+
+
     target_prompt = generate_target(input_image, original_image, prompt, **kwargs)
-    
-   
+
+
     return target_prompt
 def convert_to_wav(audio_file):
-    # 
+    #
     audio = AudioSegment.from_file(audio_file)
-    # 
-    wav_file = audio_file.replace(".mp3", ".wav")  
+    #
+    wav_file = audio_file.replace(".mp3", ".wav")
     audio.export(wav_file, format="wav")
     return wav_file
 block = gr.Blocks(
@@ -729,7 +743,7 @@ with block as demo:
     with gr.Row():
         with gr.Column():
             with gr.Row():
-                input_image = gr.ImageEditor( 
+                input_image = gr.ImageEditor(
                     label="Input Image",
                     type="pil",
                     sources=["upload"],
@@ -742,11 +756,11 @@ with block as demo:
 
             prompt = gr.Textbox(label="📖 Instruction", placeholder="Please input your instruction.", value="",lines=1)
             audio_prompt = gr.Audio(label="🎤 Voice Input", type="filepath")
-            
-            
+
+
             vlm_model_dropdown = gr.Dropdown(label="VLM model", choices=VLM_MODEL_NAMES, value=DEFAULT_VLM_MODEL_NAME, interactive=True)
             run_button = gr.Button("⭐ Run")
-            with gr.Group():    
+            with gr.Group():
                 with gr.Column():
                     GPT4o_KEY = gr.Textbox(label="GPT4o API Key", placeholder="Please input your GPT4o API Key when use GPT4o VLM (highly recommended).", value="", lines=1)
                     API_VERSION = gr.Textbox(label="GPT4o API VERSION", placeholder="", value="", lines=1)
@@ -754,18 +768,18 @@ with block as demo:
                     ENGINE = gr.Textbox(label="GPT4o ENGINE", placeholder="", value="", lines=1)
                     GPT4o_KEY_submit = gr.Button("Submit and Verify")
 
-            
+
             aspect_ratio = gr.Dropdown(label="Output aspect ratio", choices=ASPECT_RATIO_LABELS, value=DEFAULT_ASPECT_RATIO)
             resize_default = gr.Checkbox(label="Short edge resize to 640px", value=True)
 
             with gr.Row():
                 mask_button = gr.Button("Generate Mask")
                 random_mask_button = gr.Button("Square/Circle Mask ")
-            
+
 
             with gr.Row():
                 generate_target_prompt_button = gr.Button("Generate Target Prompt")
-                
+
             target_prompt = gr.Text(
                         label="Input Target Prompt",
                         max_lines=5,
@@ -782,7 +796,7 @@ with block as demo:
                         placeholder="Please input your negative prompt",
                         value='ugly, low quality',lines=1
                     )
-                                    
+
                 control_strength = gr.Slider(
                     label="Control Strength: ", show_label=True, minimum=0, maximum=1.1, value=1, step=0.01
                     )
@@ -791,14 +805,14 @@ with block as demo:
                         label="Seed: ", minimum=0, maximum=2147483647, step=1, value=648464818
                     )
                     randomize_seed = gr.Checkbox(label="Randomize seed", value=False)
-                
+
                 blending = gr.Checkbox(label="Blending mode", value=True)
 
-                
+
                 num_samples = gr.Slider(
                     label="Num samples", minimum=0, maximum=4, step=1, value=4
                 )
-                
+
                 with gr.Group():
                     with gr.Row():
                         guidance_scale = gr.Slider(
@@ -816,15 +830,15 @@ with block as demo:
                             value=50,
                         )
 
-            
+
         with gr.Column():
             with gr.Row():
                 with gr.Tab(elem_classes="feedback", label="Masked Image"):
                     masked_gallery = gr.Gallery(label='Masked Image', show_label=True, elem_id="gallery", preview=True, height=360)
                 with gr.Tab(elem_classes="feedback", label="Mask"):
                     mask_gallery = gr.Gallery(label='Mask', show_label=True, elem_id="gallery", preview=True, height=360)
-                
-           
+
+
             with gr.Tab(elem_classes="feedback", label="Output"):
                 result_gallery = gr.Gallery(label='Output', show_label=True, elem_id="gallery", preview=True, height=400)
 
@@ -839,11 +853,11 @@ with block as demo:
         init_img,
         [input_image, init_type, prompt, aspect_ratio, example_change_times],
         [input_image, original_image, original_mask, prompt, mask_gallery, masked_gallery, result_gallery, target_prompt, init_type, aspect_ratio, resize_default, example_change_times]
-    ) 
+    )
     #base, original_image, None, "", None, None, None, "", "", aspect_ratio, False, 0
     audio_prompt.change(
-        fn=update_prompt_with_audio, 
-        inputs=[audio_prompt, prompt], 
+        fn=update_prompt_with_audio,
+        inputs=[audio_prompt, prompt],
         outputs=[prompt]
     )
 
@@ -854,10 +868,10 @@ with block as demo:
 
 
     GPT4o_KEY_submit.click(fn=submit_GPT4o_KEY, inputs=[GPT4o_KEY, API_VERSION , END_POINT, ENGINE], outputs=[GPT4o_KEY])
-  
 
 
-    ips=[input_image, original_image, original_mask, prompt, negative_prompt, 
+
+    ips=[input_image, original_image, original_mask, prompt, negative_prompt,
          control_strength, seed, randomize_seed, guidance_scale, num_inference_steps,
          num_samples, blending, category, target_prompt, resize_default, aspect_ratio, GPT4o_KEY, API_VERSION , END_POINT, ENGINE
          ]
@@ -872,7 +886,7 @@ with block as demo:
 
     ## reset func
     reset_button.click(fn=reset_func, inputs=[input_image, original_image, original_mask, prompt, target_prompt, GPT4o_KEY, API_VERSION, END_POINT, ENGINE], outputs=[input_image, original_image, original_mask, prompt, mask_gallery, masked_gallery, result_gallery, target_prompt, resize_default, GPT4o_KEY, API_VERSION, END_POINT, ENGINE])
-                                                                                                                                                                             
+
 ## if have a localhost access error, try to use the following code
 demo.launch(server_name="0.0.0.0", server_port=8080)
 #demo.launch()

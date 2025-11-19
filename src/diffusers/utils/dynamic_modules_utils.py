@@ -25,7 +25,12 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 from urllib import request
 
-from huggingface_hub import cached_download, hf_hub_download, model_info
+try:
+    from huggingface_hub import cached_download, hf_hub_download, model_info
+except ImportError:
+    # 新版本的 huggingface_hub 移除了 cached_download，使用 hf_hub_download 替代
+    from huggingface_hub import hf_hub_download, model_info
+    cached_download = hf_hub_download  # 兼容性处理
 from huggingface_hub.utils import validate_hf_hub_args
 from packaging import version
 
