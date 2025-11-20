@@ -1,3 +1,13 @@
+# PyTorch - 核心依赖（必须安装）
+# 注意：根据你的 CUDA 版本选择合适的安装方式
+# CPU 版本: pip install torch torchvision torchaudio
+# CUDA 11.7: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
+# CUDA 11.8: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# CUDA 12.1: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+torch
+torchvision
+torchaudio
+
 transformers==4.36.2
 ftfy==6.1.1
 datasets==3.1.0

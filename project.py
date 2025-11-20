@@ -56,7 +56,7 @@ EDITING_TYPES = {
     "Resize": "调整对象大小，例如：minify the giraffe in the image, make the car bigger"
 }
 
-DEFAULT_EDITING_TYPE = "Local"  # 默认编辑类型
+DEFAULT_EDITING_TYPE = "Remove"  # 默认编辑类型
 
 # ============================================
 # 数据集路径（原有功能保留）
