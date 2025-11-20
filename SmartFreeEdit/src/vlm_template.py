@@ -1,6 +1,11 @@
 import os
 import torch
-from openai import OpenAI
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    OpenAI = None
 
 ## init device
 device = "cpu"

@@ -15,3 +15,6 @@ open-clip-torch
 clip
 segment_anything
 openai
+deepspeed
+# GroundingDINO - 需要从 GitHub 安装
+# 安装命令: pip install git+https://github.com/IDEA-Research/GroundingDINO.git

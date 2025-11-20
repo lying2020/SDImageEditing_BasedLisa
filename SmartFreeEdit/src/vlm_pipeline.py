@@ -7,11 +7,16 @@ from io import BytesIO
 import numpy as np
 import gradio as gr
 
-from openai import OpenAI
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    OpenAI = None
 
 from SmartFreeEdit.gpt4_o.instructions import (
-    create_editing_category_messages_gpt4o, 
-    create_ori_object_messages_gpt4o, 
+    create_editing_category_messages_gpt4o,
+    create_ori_object_messages_gpt4o,
     create_add_object_messages_gpt4o,
     create_editing_remove,
     create_editing_replace,
@@ -59,7 +64,7 @@ def run_azure_openai_inference(url, gpt_key, messages):
     except requests.exceptions.RequestException as e:
         raise gr.Error(f"An error occurred: {e}")
 
-# def run_gpt4o_vl_inference(vlm_model, 
+# def run_gpt4o_vl_inference(vlm_model,
 #                            messages):
 #     response = vlm_model.chat.completions.create(
 #         model="gpt-4o-2024-08-06",
@@ -69,16 +74,16 @@ def run_azure_openai_inference(url, gpt_key, messages):
 #     return response_str
 
 ### response editing type
-def vlm_response_editing_type(url, 
-                              gpt_key, 
-                              image, 
+def vlm_response_editing_type(url,
+                              gpt_key,
+                              image,
                               editing_prompt,
                               device):
 
-    
+
     messages = create_editing_category_messages_gpt4o(editing_prompt)
     response_str = run_azure_openai_inference(url, gpt_key, messages)
-    
+
     try:
         for category_name in ["Addition","Remove","Local","Global","Background", "Resize"]:
             if category_name.lower() in response_str.lower():
@@ -88,11 +93,11 @@ def vlm_response_editing_type(url,
 
 
 
-### response object to be edited        
-def vlm_response_object_wait_for_edit(url, 
-                                      gpt_key, 
-                                      image, 
-                                      category, 
+### response object to be edited
+def vlm_response_object_wait_for_edit(url,
+                                      gpt_key,
+                                      image,
+                                      category,
                                       editing_prompt,
                                       device):
     if category in ["Global", "Addition"]:
@@ -110,10 +115,10 @@ def vlm_response_object_wait_for_edit(url,
 ### response mask
 def vlm_response_mask(url,
                       gpt_key,
-                      category, 
-                      image, 
-                      editing_prompt, 
-                      object_wait_for_edit, 
+                      category,
+                      image,
+                      editing_prompt,
+                      object_wait_for_edit,
                       lisa_model,
                       tokenizer,
                       device="cuda",
@@ -145,14 +150,14 @@ def vlm_response_mask(url,
         mask = 255 * np.ones((height, width))
     else:
         labels = object_wait_for_edit
-    
+
     if mask is None:
         try:
             reasoning_prompt = f"Please segment the object: {labels}"
             mask = run_grounded_sam(
-                input_image={"image":image, "mask":None}, 
-                text_prompt=reasoning_prompt, 
-                task_type="segmentation", 
+                input_image={"image":image, "mask":None},
+                text_prompt=reasoning_prompt,
+                task_type="segmentation",
                 model=lisa_model,
                 tokenizer=tokenizer,
                 device=device,
@@ -164,16 +169,16 @@ def vlm_response_mask(url,
     return mask
 
 
-def vlm_response_prompt_after_apply_instruction(url, 
-                                                gpt_key, 
-                                                image, 
+def vlm_response_prompt_after_apply_instruction(url,
+                                                gpt_key,
+                                                image,
                                                 editing_prompt,
                                                 category,
                                                 device):
-                                                
+
     try:
 
-        base64_image = encode_image(image)  
+        base64_image = encode_image(image)
         if category=="Removal":
             messages = create_editing_remove(editing_prompt, base64_image)
         elif category=="Local":
@@ -190,7 +195,7 @@ def vlm_response_prompt_after_apply_instruction(url,
 def detect_object(url, gpt_key, image):
     try:
 
-        base64_image = encode_image(image)  
+        base64_image = encode_image(image)
         messages = detect_main_object_messages_gpt4o(base64_image)
         response_str = run_azure_openai_inference(url, gpt_key, messages)
     except Exception as e:

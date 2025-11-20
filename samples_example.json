@@ -1,0 +1,16 @@
+[
+    {
+        "sample_id": "sample_00001_10_change_simple_action_109",
+        "image_path": "images/10_change_simple_action_109.png",
+        "image_mask_path": "mask/10_change_simple_action_109.png",
+        "instruction": "A woman is holding a bouquet of flowers and smiling.",
+        "editing_type": "Local"
+    },
+    {
+        "sample_id": "sample_00002_example",
+        "image_path": "/absolute/path/to/image.png",
+        "image_mask_path": "/absolute/path/to/mask.png",
+        "instruction": "replace the green pepper with a carrot",
+        "editing_type": "Local"
+    }
+]
