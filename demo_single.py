@@ -28,8 +28,11 @@ from project import (
     load_models,
     EDITING_TYPES,
     DEFAULT_EDITING_TYPE,
-    SmartFreeEdit_Pipeline
+    get_smartfreeedit_pipeline
 )
+
+# 获取 SmartFreeEdit_Pipeline（延迟导入）
+SmartFreeEdit_Pipeline = project.get_smartfreeedit_pipeline()
 
 
 def edit_image(

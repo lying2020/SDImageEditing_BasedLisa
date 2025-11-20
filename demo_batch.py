@@ -30,74 +30,17 @@ import numpy as np
 from datetime import datetime
 from tqdm import tqdm
 
-# 添加项目路径
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
-# 添加 src 目录到路径（包含修改后的 diffusers）
-src_path = os.path.join(project_root, "src")
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
+# 从 project.py 导入公共配置和函数
+import project
+from project import (
+    load_models,
+    EDITING_TYPES,
+    DEFAULT_EDITING_TYPE,
+    get_smartfreeedit_pipeline
+)
 
-# 设置模型路径
-os.environ["SMARTFREEEDIT_MODEL_PATH"] = "/home/liying/Documents/smart_free_edit_huggingface"
-
-# 导入必要的模块
-from diffusers.pipelines.brushnet.pipeline_brushnet import StableDiffusionBrushNetPipeline
-from diffusers.models import BrushNetModel
-from diffusers.schedulers import UniPCMultistepScheduler
-from SmartFreeEdit.src.smartfreeedit_all_pipeline import SmartFreeEdit_Pipeline
-
-# 编辑类型定义（与 demo_single.py 保持一致）
-EDITING_TYPES = {
-    "Addition": "添加新对象到图像中，例如：add a bird, add a car in the background",
-    "Remove": "删除图像中的对象，例如：remove the car, remove the person",
-    "Local": "替换局部对象或改变对象属性，例如：change the cat to a dog, make it smile, replace the red apple with a green apple",
-    "Global": "编辑整个图像，例如：let's see it in winter, Change the season from autumn to spring",
-    "Background": "改变场景背景，例如：change the background to a beach, make the hedgehog in France",
-    "Resize": "调整对象大小，例如：minify the giraffe in the image, make the car bigger"
-}
-DEFAULT_EDITING_TYPE = "Local"
-
-
-def load_models():
-    """加载 BrushNet 和基础模型（与 demo_single.py 保持一致）"""
-    print("=" * 60)
-    print("正在加载模型...")
-    print("=" * 60)
-
-    # 获取模型路径
-    try:
-        from SmartFreeEdit.config_local import (
-            SMARTFREEEDIT_MODEL_PATH,
-            DEFAULT_BASE_MODEL_PATH,
-            BRUSHNET_PATH,
-        )
-        model_path = SMARTFREEEDIT_MODEL_PATH
-        base_model_path = DEFAULT_BASE_MODEL_PATH
-        brushnet_path = BRUSHNET_PATH
-    except ImportError:
-        model_path = os.getenv("SMARTFREEEDIT_MODEL_PATH", "/home/liying/Documents/smart_free_edit_huggingface")
-        base_model_path = os.path.join(model_path, "base_model/realisticVisionV60B1_v51VAE")
-        brushnet_path = os.path.join(model_path, "checkpoint-100000/brushnet")
-
-    torch_dtype = torch.float16
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    print(f"模型路径: {model_path}")
-    print(f"设备: {device}")
-
-    # 加载 BrushNet 和基础模型
-    print("\n[1/1] 加载 BrushNet 和基础模型...")
-    brushnet = BrushNetModel.from_pretrained(brushnet_path, torch_dtype=torch_dtype)
-    pipe = StableDiffusionBrushNetPipeline.from_pretrained(
-        base_model_path, brushnet=brushnet, torch_dtype=torch_dtype, low_cpu_mem_usage=False
-    )
-    pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
-    pipe.enable_model_cpu_offload()
-    print("✅ 模型加载完成")
-    print("=" * 60)
-
-    return pipe
+# 获取 SmartFreeEdit_Pipeline（延迟导入）
+SmartFreeEdit_Pipeline = project.get_smartfreeedit_pipeline()
 
 
 def edit_image(
@@ -124,8 +67,8 @@ def edit_image(
         raise FileNotFoundError(f"Mask图片不存在: {source_mask_path}")
 
     # 验证编辑类型
-    if editing_type not in EDITING_TYPES:
-        editing_type = DEFAULT_EDITING_TYPE
+    if editing_type not in project.EDITING_TYPES:
+        editing_type = project.DEFAULT_EDITING_TYPE
 
     # 加载图片
     original_image = np.array(Image.open(source_image_path).convert("RGB"))
@@ -263,7 +206,7 @@ def process_batch(
         image_path = sample.get("image_path", "")
         image_mask_path = sample.get("image_mask_path", "")
         instruction = sample.get("instruction", "")
-        editing_type = sample.get("editing_type", DEFAULT_EDITING_TYPE)
+        editing_type = sample.get("editing_type", project.DEFAULT_EDITING_TYPE)
 
         # 检查必要字段
         if not image_path or not image_mask_path or not instruction:
@@ -362,8 +305,8 @@ if __name__ == "__main__":
     print("批量图像编辑 Demo")
     print("=" * 60)
     print("\n支持的编辑类型：")
-    for edit_type, description in EDITING_TYPES.items():
-        marker = " (默认)" if edit_type == DEFAULT_EDITING_TYPE else ""
+    for edit_type, description in project.EDITING_TYPES.items():
+        marker = " (默认)" if edit_type == project.DEFAULT_EDITING_TYPE else ""
         print(f"  - {edit_type}{marker}: {description}")
 
     # ============================================
